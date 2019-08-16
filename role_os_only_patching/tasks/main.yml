@@ -1,0 +1,86 @@
+---
+  - name: "Ensure the SDCSS repo is enabled"
+    copy:
+      src: sdcss.repo.{{ ansible_local.cluster.env.dc }}
+      dest: /etc/yum.repos.d/sdcss.repo
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: "Refresh Subscription Manager info"
+    command: /usr/sbin/subscription-manager refresh
+
+  - name: "Ensure proper Satellite channels are enabled"
+    command: >
+      /usr/sbin/subscription-manager repos --disable="*" \
+      --enable="rhel-7-server-rpms"
+    ignore_errors: True
+
+  - name: "Clean up yum cache from var"
+    command: rm -fr /var/cache/yum/*
+
+  - name: "Clean up yum content"
+    command: yum clean all
+
+  - name: "Enable Channels"
+    command: "/usr/sbin/subscription-manager repos --enable={{item}}"
+    with_items: "{{ enable_repos }}"
+    when: enable_repos.0 is defined
+
+  - name: "Excluding Docker package from update"
+    command: atomic-openshift-docker-excluder exclude
+    ignore_errors: True
+
+  - name: "Excluding openshift package from update"
+    command: atomic-openshift-excluder exclude
+    ignore_errors: True
+
+  - name: "Generating list of packages that are getting updates to file chkupdates under tmp"
+    shell: yum check-update > /tmp/chkupdates
+    args:
+      warn: no
+    ignore_errors: True
+
+  - name: "Reading chkupdates file"
+    shell: cat /tmp/chkupdates
+    register: repo_op
+    ignore_errors: True
+
+  - name: "Making sure no updates from disabled repos"
+    when: repo_op.stdout.find('item') != -1
+    fail: msg="Check /tmp/chkupdates file, packages from disabled repos"
+    with_items: "{{ disable_repos }}"
+
+  - name: "Updating Packages and Kernel. yumupdatelog available under tmp"
+    shell: yum update -y > /tmp/yumupdatelog
+    args:
+      warn: no
+
+  - name: "Does HyTrust params.conf exist"
+    stat:
+      path: /root/Hytrust/params.conf
+    register: hytrust_params
+
+  - name: "Create HyTrust directory"
+    file:
+      path: /root/Hytrust
+      state: directory
+      mode: 0700
+    when: hytrust_params.stat.exists == false
+
+  - name: "Copy encryptFS script to client"
+    copy:
+      src: encryptFS.sh
+      dest: /root/Hytrust/encryptFS.sh
+      owner: root
+      group: root
+      mode: 0700
+    when: hytrust_params.stat.exists == false
+
+  - name: "generate params.conf"
+    command: /root/Hytrust/encryptFS.sh -g
+    when: hytrust_params.stat.exists == false
+
+  - name: "HyTrust Update"
+    shell: htroot update -c /root/Hytrust/params.conf
+    ignore_errors: True

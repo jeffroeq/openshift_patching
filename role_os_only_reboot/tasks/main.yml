@@ -1,0 +1,48 @@
+---
+  - name: set OFE Kube Config
+    set_fact:
+      stamp: "{{ 99999999 | random }}"
+      kube_config: "role-os-patching-{{ ansible_local.cluster.env.is }}.config"
+
+  - name: Copy Kube Config locally
+    copy:
+      src: "{{ kube_config }}"
+      dest: "/tmp/{{ kube_config }}.{{ stamp }}"
+      owner: root
+      group: root
+      mode: 640
+    delegate_to: 127.0.0.1
+
+  - name: Unschedule Host from Pool
+    local_action: >
+      command oc adm drain {{ inventory_hostname }} --force=True  --grace-period=0 --delete-local-data=True --ignore-daemonsets=True --config=/tmp/{{ kube_config }}.{{ stamp }} --insecure-skip-tls-verify=true
+
+  - pause:
+        seconds: 15
+    
+  - name: Restart VM
+    shell: sleep 2 && shutdown -r now "Ansible triggered reboot"
+    async: 1
+    poll: 0
+    ignore_errors: true
+
+  - name: Wait for server to come back online
+    wait_for_connection:
+      connect_timeout: 20
+      sleep: 5
+      delay: 5
+      timeout: 300
+    become: no
+
+  - pause:
+      seconds: 30
+  
+  - name: Add Host back into Pool
+    local_action: >
+      command oc adm uncordon {{ inventory_hostname }} --config=/tmp/{{ kube_config }}.{{ stamp }} --insecure-skip-tls-verify=true
+
+  - name: Clean up
+    file:
+      path: "/tmp/{{ kube_config }}.{{ stamp }}"
+      state: absent
+    delegate_to: 127.0.0.1

@@ -1,0 +1,6 @@
+[SDCSS-Updates]
+name=SDCSS repository for package updates
+baseurl=https://hostname.domain.com/pub/sdcs/rhel7
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-SDCSS

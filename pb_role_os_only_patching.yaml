@@ -1,0 +1,22 @@
+---
+# Playbook to patch the OS for all nodes
+# How-to:
+# ansible-playbook -v -l [masters|infra_nodes|app_nodes] pb_role_os_only_patching.yaml
+#
+- hosts: masters
+  gather_facts: yes
+  serial: 1
+  roles:
+    - role_os_only_patching
+
+- hosts: infra_nodes
+  gather_facts: yes
+  serial: 1
+  roles:
+    - role_os_only_patching
+
+- hosts: app_nodes
+  gather_facts: yes
+  serial: 2
+  roles:
+    - role_os_only_patching

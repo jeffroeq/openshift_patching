@@ -1,0 +1,5 @@
+---
+# vars file for role_os_reboot
+#- name: set OFE sandbox login
+#    kube_config: role-os-patching-sandbox.yaml
+#  when: "'sbox' == ansible_local.cluster.env.is"
